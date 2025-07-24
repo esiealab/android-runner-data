@@ -7,12 +7,12 @@ EXPERIMENTS = [
     {
         "name": "BatteryManager TikTok",
         "source_type": "batterymanager",
-        "data_path": "experience/data/Pixel3W/com-zhiliaoapp-musically/batterymanager"
+        "data_path": "datas/experience/data/Pixel3W/com-zhiliaoapp-musically/batterymanager"
     },
     {
         "name": "WattoMeter TikTok",
         "source_type": "wattometer",
-        "data_path_global": "Resultat_campagne_Pixel3_avec_stalkerware/TikTok/output",
+        "data_path_global": "datas/Resultat_campagne_Pixel3_avec/TikTok/output",
         "data_path": "data/Pixel3W/com-zhiliaoapp-musically/wattometer"
     }
 ]
