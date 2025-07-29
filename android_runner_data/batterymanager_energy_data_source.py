@@ -5,8 +5,8 @@ from typing import Optional
 from .base_energy_data_source import BaseEnergyDataSource
 
 class BatteryManagerEnergyDataSource(BaseEnergyDataSource):
-    def __init__(self, source: str, data_source_path: str, name: Optional[str] = None):
-        super().__init__(source, data_source_path, name=name)
+    def __init__(self, source: str, data_source_path: str, name: Optional[str] = None, handle_duplicates: bool = True, duplicate_tolerance_percent: float = 5.0):
+        super().__init__(source, data_source_path, name=name, handle_duplicates=handle_duplicates, duplicate_tolerance_percent=duplicate_tolerance_percent)
 
     def _load_data_impl(self):
         # Detect the CSV file if data_source_path is a directory

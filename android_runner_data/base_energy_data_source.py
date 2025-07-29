@@ -7,7 +7,7 @@ from android_runner_data import logger
 class BaseEnergyDataSource(ABC):
     STANDARD_COLUMNS = ["Timestamp", "BusVolts", "CurrentMilliAmps", "PowerWatts"]
 
-    def __init__(self, source: str, data_source_path: str, name: Optional[str] = None):
+    def __init__(self, source: str, data_source_path: str, name: Optional[str] = None, handle_duplicates: bool = True, duplicate_tolerance_percent: float = 5.0):
         self.source = source
         self.data_source_path = data_source_path  # Can be a folder or a file, handled in load_data
         self.data_file_name = None  # Will be set in load_data
@@ -21,6 +21,8 @@ class BaseEnergyDataSource(ABC):
         self._name = name
         self._duration_seconds = None
         self._start_time = None
+        self.handle_duplicates = handle_duplicates
+        self.duplicate_tolerance_percent = duplicate_tolerance_percent
 
     @property
     def duration_seconds(self) -> Optional[float]:
@@ -90,8 +92,9 @@ class BaseEnergyDataSource(ABC):
         Also computes experiment duration and start time from timestamps.
         """
         self._load_data_impl()
-        # Handle duplicate timestamps in a separate function
-        self._handle_duplicate_timestamps(tolerance_percent=5.0)
+        # Handle duplicate timestamps only if requested
+        if self.handle_duplicates:
+            self._handle_duplicate_timestamps(tolerance_percent=self.duplicate_tolerance_percent)
         # Sort data by Timestamp to ensure strictly increasing order
         self._data = self._data.sort_values("Timestamp").reset_index(drop=True)
         self._energy_wh = self._compute_energy_wh()
@@ -309,7 +312,7 @@ class BaseEnergyDataSource(ABC):
         return energy_wh * 3600.0
 
     @staticmethod
-    def create_from_type(source_type: str, data_source_path: str, name: Optional[str] = None, source_class_map=None):
+    def create_from_type(source_type: str, data_source_path: str, name: Optional[str] = None, source_class_map=None, handle_duplicates: bool = True, duplicate_tolerance_percent: float = 5.0):
         """
         Dynamically creates an instance of the correct class from the source type and mapping.
         """
@@ -326,7 +329,13 @@ class BaseEnergyDataSource(ABC):
             logger.error(f"Unknown source type: {source_type}")
             raise ValueError(f"Unknown source type: {source_type}")
         logger.debug(f"Creating instance {cls.__name__} for {data_source_path} (name={name})")
-        return cls(source=source_type, data_source_path=data_source_path, name=name)
+        return cls(
+            source=source_type,
+            data_source_path=data_source_path,
+            name=name,
+            handle_duplicates=handle_duplicates,
+            duplicate_tolerance_percent=duplicate_tolerance_percent
+        )
 
     @staticmethod
     def load_experiments(experiments):
@@ -340,6 +349,9 @@ class BaseEnergyDataSource(ABC):
             data_path = exp["data_path"]
             data_path_global = exp.get("data_path_global")
             name = exp.get("name")
+            # Ajout : lecture des paramètres depuis le JSON
+            handle_duplicates = exp.get("handle_duplicates", True)
+            duplicate_tolerance_percent = exp.get("duplicate_tolerance_percent", 5.0)
             if data_path_global:
                 logger.info(f"Searching subfolders in {data_path_global} for {source_type}")
                 for subdir in os.listdir(data_path_global):
@@ -350,7 +362,11 @@ class BaseEnergyDataSource(ABC):
                         full_data_path = os.path.join(subdir_path, data_path)
                         logger.info(f"Loading data for {source_type} from {full_data_path}")
                         try:
-                            obj = BaseEnergyDataSource.create_from_type(source_type, full_data_path, name=name)
+                            obj = BaseEnergyDataSource.create_from_type(
+                                source_type, full_data_path, name=name,
+                                handle_duplicates=handle_duplicates,
+                                duplicate_tolerance_percent=duplicate_tolerance_percent
+                            )
                             obj.load_data()
                             sources.append(obj)
                         except ValueError as e:
@@ -362,7 +378,11 @@ class BaseEnergyDataSource(ABC):
             else:
                 logger.info(f"Loading data for {source_type} from {data_path}")
                 try:
-                    obj = BaseEnergyDataSource.create_from_type(source_type, data_path, name=name)
+                    obj = BaseEnergyDataSource.create_from_type(
+                        source_type, data_path, name=name,
+                        handle_duplicates=handle_duplicates,
+                        duplicate_tolerance_percent=duplicate_tolerance_percent
+                    )
                     obj.load_data()
                     sources.append(obj)
                 except ValueError as e:
