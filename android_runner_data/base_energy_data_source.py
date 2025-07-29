@@ -17,6 +17,7 @@ class BaseEnergyDataSource(ABC):
         self._power_std = None
         self._power_min = None
         self._power_max = None
+        self._power_fft = pd.DataFrame(columns=["frequency", "fft_magnitude"])
         self._name = name
         self._duration_seconds = None
         self._start_time = None
@@ -49,6 +50,10 @@ class BaseEnergyDataSource(ABC):
         # No direct storage for energy in joules, always converted on the fly
 
     @property
+    def power_fft(self):
+        return self._power_fft
+    
+    @property
     def name(self) -> Optional[str]:
         return self._name
 
@@ -65,7 +70,7 @@ class BaseEnergyDataSource(ABC):
     @property
     def data(self):
         return self._data
-    
+
     @abstractmethod
     def _load_data_impl(self):
         """
@@ -85,14 +90,17 @@ class BaseEnergyDataSource(ABC):
         Also computes experiment duration and start time from timestamps.
         """
         self._load_data_impl()
+        # Sort data by Timestamp to ensure strictly increasing order
+        self._data = self._data.sort_values("Timestamp").reset_index(drop=True)
         self._energy_wh = self._compute_energy_wh()
         self._power_avg = self._compute_power_average()
         self._power_std = self._compute_power_std()
         self._power_min = self._compute_power_min()
         self._power_max = self._compute_power_max()
+        self._power_fft = self._compute_power_fft()
         self._start_time = self._compute_start_time()
         self._duration_seconds = self._compute_duration_seconds()
-    
+
     def _compute_start_time(self) -> Optional[str]:
         """
         Computes and returns the start time of the experiment as a short date and time string (YYYY-MM-DD HH:MM:SS).
@@ -170,6 +178,49 @@ class BaseEnergyDataSource(ABC):
         if power.isnull().any():
             return None
         return float(power.max())
+    
+    def _compute_power_fft(self):
+        """
+        Computes the FFT of the PowerWatts column and returns a DataFrame with 'frequency' and 'fft_magnitude' columns.
+        Returns an empty DataFrame if data is missing or incomplete.
+        """
+        if (
+            self._data is None
+            or self._data.empty
+            or "PowerWatts" not in self._data.columns
+            or "Timestamp" not in self._data.columns
+        ):
+            return pd.DataFrame(columns=["frequency", "fft_magnitude"])
+
+        # Convert PowerWatts and Timestamp to numeric, coercing errors
+        power = pd.to_numeric(self._data["PowerWatts"], errors="coerce")
+        timestamps = pd.to_numeric(self._data["Timestamp"], errors="coerce")
+
+        # Remove rows with NaN values
+        valid = ~(power.isna() | timestamps.isna())
+        power = power[valid].to_numpy()
+        timestamps = timestamps[valid].to_numpy()
+        if len(power) < 2:
+            return pd.DataFrame(columns=["frequency", "fft_magnitude"])
+
+        # Compute average sampling interval in seconds
+        dt = np.diff(timestamps)
+        #if len(dt) == 0 or np.any(dt <= 0):
+        #    return pd.DataFrame(columns=["frequency", "fft_magnitude"])
+        mean_dt_sec = np.mean(dt) / 1000.0  # timestamps are in ms
+        # Remove DC component for FFT
+        power_centered = power - np.mean(power)
+
+        # Compute FFT (one-sided)
+        fft_vals = np.fft.rfft(power_centered)
+        fft_magnitude = np.abs(fft_vals)
+        freqs = np.fft.rfftfreq(len(power_centered), d=mean_dt_sec)
+
+        df_fft = pd.DataFrame({
+            "frequency": freqs,
+            "fft_magnitude": fft_magnitude
+        })
+        return df_fft
     
     def _compute_energy_wh(self) -> Optional[float]:
         """

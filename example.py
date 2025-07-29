@@ -17,6 +17,21 @@ EXPERIMENTS = [
     }
 ]
 
+EXPERIMENTS = [
+    {
+        "name": "[AVEC] WattoMeter TikTok",
+        "source_type": "wattometer",
+        "data_path_global": "datas/Resultat_campagne_Pixel3_avec/TikTok/output",
+        "data_path": "data/Pixel3W/com-zhiliaoapp-musically/wattometer"
+    },
+    {
+        "name": "[SANS] WattoMeter TikTok",
+        "source_type": "wattometer",
+        "data_path_global": "datas/Resultat_campagne_Pixel3_sans/TikTok/output",
+        "data_path": "data/Pixel3W/com-zhiliaoapp-musically/wattometer"
+    }
+]
+
 import logging
 logging.getLogger("android_runner_data").setLevel(logging.INFO)
 
@@ -46,3 +61,5 @@ print(summary_df)
 # Plot power for all sources
 plotter = DataSourcePlotter(data_sources)
 plotter.plot_power(title="Comparison of measured power")
+plotter.plot_fft(title="Comparison of FFT of power")
+plotter.plot_fft(title="Comparison of FFT of power with frequency limits", freq_min=0.1, freq_max=10.0)
