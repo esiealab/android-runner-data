@@ -7,13 +7,13 @@ EXPERIMENTS_ROOT = [
     {
         "handle_duplicates": False,
         "duplicate_tolerance_percent": 10.0,
-        "name": "[AVEC] WattoMeter TikTok",
+        "name": "[AVEC] TikTok",
         "data_path": "datas/Resultat_campagne_Pixel3_avec/TikTok/"
     },
     {
         "handle_duplicates": False,
         "duplicate_tolerance_percent": 10.0,
-        "name": "[SANS] WattoMeter TikTok",
+        "name": "[SANS] TikTok",
         "data_path": "datas/Resultat_campagne_Pixel3_sans/TikTok/"
     }
 ]
