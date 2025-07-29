@@ -3,36 +3,18 @@ from android_runner_data import BaseEnergyDataSource
 from android_runner_data.plotter import DataSourcePlotter
 
 # Direct definition of the list of experiments
-EXPERIMENTS = [
-    {
-        "name": "BatteryManager TikTok",
-        "source_type": "batterymanager",
-        "data_path": "datas/experience/data/Pixel3W/com-zhiliaoapp-musically/batterymanager"
-    },
-    {
-        "name": "WattoMeter TikTok",
-        "source_type": "wattometer",
-        "data_path_global": "datas/Resultat_campagne_Pixel3_avec/TikTok/output",
-        "data_path": "data/Pixel3W/com-zhiliaoapp-musically/wattometer"
-    }
-]
-
-EXPERIMENTS = [
+EXPERIMENTS_ROOT = [
     {
         "handle_duplicates": False,
         "duplicate_tolerance_percent": 10.0,
         "name": "[AVEC] WattoMeter TikTok",
-        "source_type": "wattometer",
-        "data_path_global": "datas/Resultat_campagne_Pixel3_avec/TikTok/output",
-        "data_path": "data/Pixel3W/com-zhiliaoapp-musically/wattometer"
+        "data_path": "datas/Resultat_campagne_Pixel3_avec/TikTok/"
     },
     {
         "handle_duplicates": False,
         "duplicate_tolerance_percent": 10.0,
         "name": "[SANS] WattoMeter TikTok",
-        "source_type": "wattometer",
-        "data_path_global": "datas/Resultat_campagne_Pixel3_sans/TikTok/output",
-        "data_path": "data/Pixel3W/com-zhiliaoapp-musically/wattometer"
+        "data_path": "datas/Resultat_campagne_Pixel3_sans/TikTok/"
     }
 ]
 
@@ -40,7 +22,7 @@ import logging
 logging.getLogger("android_runner_data").setLevel(logging.INFO)
 
 # Load experiments using the static method
-data_sources = BaseEnergyDataSource.load_experiments(EXPERIMENTS)
+data_sources = BaseEnergyDataSource.load_experiments_from_root(EXPERIMENTS_ROOT)
 
 # Summary table
 summary = []

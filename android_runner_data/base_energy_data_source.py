@@ -393,4 +393,52 @@ class BaseEnergyDataSource(ABC):
                     continue
         logger.info(f"Total number of loaded experiments: {len(sources)}")
         return sources
-
+    
+    @staticmethod
+    def load_experiments_from_root(experiments):
+        """
+        Loads all experiments from a list of config dicts.
+        Each config dict must contain:
+            - handle_duplicates
+            - duplicate_tolerance_percent
+            - name
+            - data_path (root directory to traverse)
+        For each config, searches recursively for 'wattometer' and 'batterymanager' subfolders
+        and loads all CSV files they contain with the appropriate class.
+        """
+        import os
+        sources = []
+        folder_to_type = {
+            "wattometer": "wattometer",
+            "batterymanager": "batterymanager"
+        }
+        # Accept a single dict or a list of dicts
+        if isinstance(experiments, dict):
+            experiments = [experiments]
+        for config in experiments:
+            handle_duplicates = config.get("handle_duplicates", True)
+            duplicate_tolerance_percent = config.get("duplicate_tolerance_percent", 5.0)
+            name = config.get("name")
+            data_path = config["data_path"]
+            for root, dirs, files in os.walk(data_path):
+                for folder in folder_to_type:
+                    if os.path.basename(root) == folder:
+                        source_type = folder_to_type[folder]
+                        for file in files:
+                            if file.endswith(".csv"):
+                                file_path = os.path.join(root, file)
+                                try:
+                                    obj = BaseEnergyDataSource.create_from_type(
+                                        source_type=source_type,
+                                        data_source_path=file_path,
+                                        name=name,
+                                        handle_duplicates=handle_duplicates,
+                                        duplicate_tolerance_percent=duplicate_tolerance_percent
+                                    )
+                                    obj.load_data()
+                                    sources.append(obj)
+                                    logger.info(f"Loaded {source_type} from {file_path}")
+                                except Exception as e:
+                                    logger.error(f"Error loading {source_type} from {file_path}: {e}")
+        logger.info(f"Total number of loaded experiments from root: {len(sources)}")
+        return sources

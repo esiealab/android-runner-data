@@ -24,7 +24,7 @@ class DataSourcePlotter:
             plt.show()
         return plt.gcf()
     
-    def plot_fft(self, title: str = "FFT of Power vs Frequency", freq_min: float = None, freq_max: float = None, show: bool = True):
+    def plot_fft(self, title: str = "FFT of Power vs Frequency", show: bool = True, freq_min: float = None, freq_max: float = None):
         """
         Plot the FFT (Fast Fourier Transform) of the power data for each source,
         using the DataFrame stored in the power_fft attribute.
