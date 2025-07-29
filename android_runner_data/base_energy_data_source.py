@@ -90,6 +90,8 @@ class BaseEnergyDataSource(ABC):
         Also computes experiment duration and start time from timestamps.
         """
         self._load_data_impl()
+        # Handle duplicate timestamps in a separate function
+        self._handle_duplicate_timestamps(tolerance_percent=5.0)
         # Sort data by Timestamp to ensure strictly increasing order
         self._data = self._data.sort_values("Timestamp").reset_index(drop=True)
         self._energy_wh = self._compute_energy_wh()
@@ -100,6 +102,44 @@ class BaseEnergyDataSource(ABC):
         self._power_fft = self._compute_power_fft()
         self._start_time = self._compute_start_time()
         self._duration_seconds = self._compute_duration_seconds()
+
+    def _handle_duplicate_timestamps(self, tolerance_percent: float = 5.0):
+        """
+        Handle duplicate timestamps: if multiple rows have the same Timestamp,
+        and their PowerWatts values are close (within tolerance_percent% of the mean), replace by their mean.
+        Otherwise, keep all rows.
+
+        Args:
+            tolerance_percent (float): Pourcentage de tolérance pour la différence entre les valeurs PowerWatts.
+                                       Si la différence max-min est inférieure à ce pourcentage du mean, on fait la moyenne.
+        """
+        replaced_duplicates = []
+        kept_duplicates = []
+        grouped = self._data.groupby("Timestamp", sort=False)
+        new_rows = []
+        for ts, group in grouped:
+            if len(group) == 1:
+                new_rows.append(group.iloc[0])
+            else:
+                power_vals = group["PowerWatts"].astype(float)
+                mean_power = power_vals.mean()
+                if (power_vals.max() - power_vals.min()) <= (tolerance_percent / 100.0) * mean_power:
+                    replaced_duplicates.append(ts)
+                    mean_row = group.mean(numeric_only=True)
+                    # Keep the first row's non-numeric values (if any)
+                    for col in group.columns:
+                        if col not in mean_row.index:
+                            mean_row[col] = group.iloc[0][col]
+                    new_rows.append(mean_row)
+                else:
+                    kept_duplicates.append(ts)
+                    for _, row in group.iterrows():
+                        new_rows.append(row)
+        self._data = pd.DataFrame(new_rows).reset_index(drop=True)
+        if replaced_duplicates:
+            logger.info(f"Replaced duplicate timestamps (within {tolerance_percent}%): {len(replaced_duplicates)}")
+        if kept_duplicates:
+            logger.warning(f"Kept duplicate timestamps (differ >{tolerance_percent}%): {len(kept_duplicates)}")
 
     def _compute_start_time(self) -> Optional[str]:
         """
