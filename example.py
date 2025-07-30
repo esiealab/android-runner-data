@@ -20,7 +20,6 @@ EXPERIMENTS = [
 EXPERIMENTS = [
     {
         "handle_duplicates": False,
-        "duplicate_tolerance_percent": 10.0,
         "name": "[AVEC] WattoMeter TikTok",
         "source_type": "wattometer",
         "data_path_global": "datas/Resultat_campagne_Pixel3_avec/TikTok/output",
@@ -28,7 +27,6 @@ EXPERIMENTS = [
     },
     {
         "handle_duplicates": False,
-        "duplicate_tolerance_percent": 10.0,
         "name": "[SANS] WattoMeter TikTok",
         "source_type": "wattometer",
         "data_path_global": "datas/Resultat_campagne_Pixel3_sans/TikTok/output",

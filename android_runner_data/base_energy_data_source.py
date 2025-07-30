@@ -7,7 +7,7 @@ from android_runner_data import logger
 class BaseEnergyDataSource(ABC):
     STANDARD_COLUMNS = ["Timestamp", "BusVolts", "CurrentMilliAmps", "PowerWatts"]
 
-    def __init__(self, source: str, data_source_path: str, name: Optional[str] = None, handle_duplicates: bool = True, duplicate_tolerance_percent: float = 5.0):
+    def __init__(self, source: str, data_source_path: str, name: Optional[str] = None, handle_duplicates: bool = True):
         self.source = source
         self.data_source_path = data_source_path  # Can be a folder or a file, handled in load_data
         self.data_file_name = None  # Will be set in load_data
@@ -22,7 +22,6 @@ class BaseEnergyDataSource(ABC):
         self._duration_seconds = None
         self._start_time = None
         self.handle_duplicates = handle_duplicates
-        self.duplicate_tolerance_percent = duplicate_tolerance_percent
 
     @property
     def duration_seconds(self) -> Optional[float]:
@@ -94,7 +93,12 @@ class BaseEnergyDataSource(ABC):
         self._load_data_impl()
         # Handle duplicate timestamps only if requested
         if self.handle_duplicates:
-            self._handle_duplicate_timestamps(tolerance_percent=self.duplicate_tolerance_percent)
+            before = len(self._data)
+            self._data = self._data.groupby("Timestamp", sort=True).mean().reset_index()
+            after = len(self._data)
+            reduction = before - after
+            percent = (reduction / before * 100) if before > 0 else 0
+            logger.info(f"Removed {reduction} duplicate rows based on Timestamp - Final: {after} rows ({percent:.2f}% reduction)")
         # Sort data by Timestamp to ensure strictly increasing order
         self._data = self._data.sort_values("Timestamp").reset_index(drop=True)
         self._energy_wh = self._compute_energy_wh()
@@ -105,44 +109,6 @@ class BaseEnergyDataSource(ABC):
         self._power_fft = self._compute_power_fft()
         self._start_time = self._compute_start_time()
         self._duration_seconds = self._compute_duration_seconds()
-
-    def _handle_duplicate_timestamps(self, tolerance_percent: float = 5.0):
-        """
-        Handle duplicate timestamps: if multiple rows have the same Timestamp,
-        and their PowerWatts values are close (within tolerance_percent% of the mean), replace by their mean.
-        Otherwise, keep all rows.
-
-        Args:
-            tolerance_percent (float): Pourcentage de tolérance pour la différence entre les valeurs PowerWatts.
-                                       Si la différence max-min est inférieure à ce pourcentage du mean, on fait la moyenne.
-        """
-        replaced_duplicates = []
-        kept_duplicates = []
-        grouped = self._data.groupby("Timestamp", sort=False)
-        new_rows = []
-        for ts, group in grouped:
-            if len(group) == 1:
-                new_rows.append(group.iloc[0])
-            else:
-                power_vals = group["PowerWatts"].astype(float)
-                mean_power = power_vals.mean()
-                if (power_vals.max() - power_vals.min()) <= (tolerance_percent / 100.0) * mean_power:
-                    replaced_duplicates.append(ts)
-                    mean_row = group.mean(numeric_only=True)
-                    # Keep the first row's non-numeric values (if any)
-                    for col in group.columns:
-                        if col not in mean_row.index:
-                            mean_row[col] = group.iloc[0][col]
-                    new_rows.append(mean_row)
-                else:
-                    kept_duplicates.append(ts)
-                    for _, row in group.iterrows():
-                        new_rows.append(row)
-        self._data = pd.DataFrame(new_rows).reset_index(drop=True)
-        if replaced_duplicates:
-            logger.info(f"Replaced duplicate timestamps (within {tolerance_percent}%): {len(replaced_duplicates)}")
-        if kept_duplicates:
-            logger.warning(f"Kept duplicate timestamps (differ >{tolerance_percent}%): {len(kept_duplicates)}")
 
     def _compute_start_time(self) -> Optional[str]:
         """
@@ -312,7 +278,7 @@ class BaseEnergyDataSource(ABC):
         return energy_wh * 3600.0
 
     @staticmethod
-    def create_from_type(source_type: str, data_source_path: str, name: Optional[str] = None, source_class_map=None, handle_duplicates: bool = True, duplicate_tolerance_percent: float = 5.0):
+    def create_from_type(source_type: str, data_source_path: str, name: Optional[str] = None, source_class_map=None, handle_duplicates: bool = True):
         """
         Dynamically creates an instance of the correct class from the source type and mapping.
         """
@@ -333,8 +299,7 @@ class BaseEnergyDataSource(ABC):
             source=source_type,
             data_source_path=data_source_path,
             name=name,
-            handle_duplicates=handle_duplicates,
-            duplicate_tolerance_percent=duplicate_tolerance_percent
+            handle_duplicates=handle_duplicates
         )
 
     @staticmethod
@@ -351,7 +316,6 @@ class BaseEnergyDataSource(ABC):
             name = exp.get("name")
             # Ajout : lecture des paramètres depuis le JSON
             handle_duplicates = exp.get("handle_duplicates", True)
-            duplicate_tolerance_percent = exp.get("duplicate_tolerance_percent", 5.0)
             if data_path_global:
                 logger.info(f"Searching subfolders in {data_path_global} for {source_type}")
                 for subdir in os.listdir(data_path_global):
@@ -364,8 +328,7 @@ class BaseEnergyDataSource(ABC):
                         try:
                             obj = BaseEnergyDataSource.create_from_type(
                                 source_type, full_data_path, name=name,
-                                handle_duplicates=handle_duplicates,
-                                duplicate_tolerance_percent=duplicate_tolerance_percent
+                                handle_duplicates=handle_duplicates
                             )
                             obj.load_data()
                             sources.append(obj)
@@ -380,8 +343,7 @@ class BaseEnergyDataSource(ABC):
                 try:
                     obj = BaseEnergyDataSource.create_from_type(
                         source_type, data_path, name=name,
-                        handle_duplicates=handle_duplicates,
-                        duplicate_tolerance_percent=duplicate_tolerance_percent
+                        handle_duplicates=handle_duplicates
                     )
                     obj.load_data()
                     sources.append(obj)
@@ -400,7 +362,6 @@ class BaseEnergyDataSource(ABC):
         Loads all experiments from a list of config dicts.
         Each config dict must contain:
             - handle_duplicates
-            - duplicate_tolerance_percent
             - name
             - data_path (root directory to traverse)
         For each config, searches recursively for 'wattometer' and 'batterymanager' subfolders
@@ -417,7 +378,6 @@ class BaseEnergyDataSource(ABC):
             experiments = [experiments]
         for config in experiments:
             handle_duplicates = config.get("handle_duplicates", True)
-            duplicate_tolerance_percent = config.get("duplicate_tolerance_percent", 5.0)
             name = config.get("name")
             data_path = config["data_path"]
             for root, dirs, files in os.walk(data_path):
@@ -432,8 +392,7 @@ class BaseEnergyDataSource(ABC):
                                         source_type=source_type,
                                         data_source_path=file_path,
                                         name=name,
-                                        handle_duplicates=handle_duplicates,
-                                        duplicate_tolerance_percent=duplicate_tolerance_percent
+                                        handle_duplicates=handle_duplicates
                                     )
                                     obj.load_data()
                                     sources.append(obj)

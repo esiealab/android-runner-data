@@ -6,13 +6,11 @@ from android_runner_data.plotter import DataSourcePlotter
 EXPERIMENTS_ROOT = [
     {
         "handle_duplicates": False,
-        "duplicate_tolerance_percent": 10.0,
         "name": "[AVEC] TikTok",
         "data_path": "datas/Resultat_campagne_Pixel3_avec/TikTok/"
     },
     {
         "handle_duplicates": False,
-        "duplicate_tolerance_percent": 10.0,
         "name": "[SANS] TikTok",
         "data_path": "datas/Resultat_campagne_Pixel3_sans/TikTok/"
     }
